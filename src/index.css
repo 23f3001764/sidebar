@@ -1,0 +1,275 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 60% 3%;
+    --foreground: 210 50% 90%;
+
+    --card: 220 50% 10%;
+    --card-foreground: 210 50% 90%;
+
+    --popover: 220 55% 8%;
+    --popover-foreground: 210 50% 90%;
+
+    --primary: 42 75% 60%;
+    --primary-foreground: 220 60% 3%;
+
+    --secondary: 210 50% 20%;
+    --secondary-foreground: 210 50% 90%;
+
+    --muted: 210 25% 42%;
+    --muted-foreground: 210 25% 55%;
+
+    --accent: 207 72% 65%;
+    --accent-foreground: 220 60% 3%;
+
+    --destructive: 0 75% 50%;
+    --destructive-foreground: 210 50% 90%;
+
+    --border: 207 72% 65% / 0.2;
+    --input: 207 72% 65% / 0.15;
+    --ring: 207 72% 65%;
+
+    --radius: 0.75rem;
+
+    /* STEAMI custom tokens */
+    --steami-bg: #03060f;
+    --steami-gold: 42 75% 60%;
+    --steami-gold-hex: #e8b84b;
+    --steami-gold2: 43 85% 72%;
+    --steami-cyan: 207 72% 65%;
+    --steami-cyan-hex: #63b3ed;
+    --steami-red: 0 95% 62%;
+    --steami-green: 155 75% 50%;
+    --steami-violet: 255 90% 75%;
+    --steami-orange: 28 95% 62%;
+
+    --steami-glass-bg: rgba(12, 28, 58, 0.52);
+    --steami-glass-bg-hover: rgba(16, 36, 72, 0.68);
+    --steami-glass-blur: blur(18px) saturate(160%);
+    --steami-glass-border: rgba(99, 179, 237, 0.2);
+    --steami-glass-radius: 16px;
+
+    --steami-modal-bg: rgba(5, 14, 32, 0.88);
+
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-serif: 'Playfair Display', Georgia, serif;
+    --font-sans: 'IBM Plex Sans', sans-serif;
+
+    --sidebar-background: 220 50% 6%;
+    --sidebar-foreground: 210 50% 90%;
+    --sidebar-primary: 42 75% 60%;
+    --sidebar-primary-foreground: 220 60% 3%;
+    --sidebar-accent: 207 72% 65%;
+    --sidebar-accent-foreground: 220 60% 3%;
+    --sidebar-border: 207 72% 65% / 0.15;
+    --sidebar-ring: 207 72% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    background: var(--steami-bg);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% 10%, rgba(20, 50, 120, 0.45) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(10, 30, 80, 0.35) 0%, transparent 55%),
+      radial-gradient(ellipse 40% 30% at 50% 50%, rgba(5, 20, 55, 0.2) 0%, transparent 70%);
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: var(--steami-glass-bg);
+    backdrop-filter: var(--steami-glass-blur);
+    border: 1px solid var(--steami-glass-border);
+    border-radius: var(--steami-glass-radius);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+  }
+
+  .glass-card:hover {
+    background: var(--steami-glass-bg-hover);
+    border-color: rgba(99, 179, 237, 0.38);
+  }
+
+  .glass-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 5%, rgba(255, 255, 255, 0.18) 50%, transparent 95%);
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .steami-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: hsl(var(--muted));
+  }
+
+  .steami-heading {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    line-height: 1.2;
+    color: hsl(var(--foreground));
+  }
+
+  .steami-badge {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 2px;
+    border: 1px solid;
+  }
+
+  .steami-badge-cyan {
+    border-color: hsl(var(--steami-cyan));
+    color: hsl(var(--steami-cyan));
+    background: rgba(99, 179, 237, 0.08);
+  }
+
+  .steami-badge-gold {
+    border-color: hsl(var(--steami-gold));
+    color: hsl(var(--steami-gold));
+    background: rgba(232, 184, 75, 0.1);
+  }
+
+  .steami-badge-green {
+    border-color: hsl(var(--steami-green));
+    color: hsl(var(--steami-green));
+    background: rgba(38, 222, 129, 0.08);
+  }
+
+  .steami-badge-violet {
+    border-color: hsl(var(--steami-violet));
+    color: hsl(var(--steami-violet));
+    background: rgba(167, 139, 250, 0.08);
+  }
+
+  .steami-badge-orange {
+    border-color: hsl(var(--steami-orange));
+    color: hsl(var(--steami-orange));
+    background: rgba(251, 146, 60, 0.08);
+  }
+
+  .steami-badge-red {
+    border-color: hsl(var(--steami-red));
+    color: hsl(var(--steami-red));
+    background: rgba(252, 92, 101, 0.08);
+  }
+
+  .steami-btn {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 11px 20px;
+    border: 1px solid rgba(99, 179, 237, 0.35);
+    background: rgba(20, 55, 110, 0.3);
+    backdrop-filter: blur(8px);
+    color: hsl(var(--steami-cyan));
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  }
+
+  .steami-btn:hover {
+    background: rgba(30, 75, 150, 0.45);
+    border-color: rgba(99, 179, 237, 0.6);
+    box-shadow: 0 0 20px rgba(99, 179, 237, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .steami-btn-gold {
+    border-color: rgba(232, 184, 75, 0.35);
+    background: rgba(232, 184, 75, 0.1);
+    color: hsl(var(--steami-gold));
+  }
+
+  .steami-btn-gold:hover {
+    background: rgba(232, 184, 75, 0.2);
+    border-color: rgba(232, 184, 75, 0.6);
+    box-shadow: 0 0 20px rgba(232, 184, 75, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .steami-section-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: hsl(var(--muted));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .steami-section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(99, 179, 237, 0.1);
+  }
+}
+
+/* Star particles canvas */
+#star-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -2;
+  pointer-events: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(99, 179, 237, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 179, 237, 0.4);
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(99, 179, 237, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(99, 179, 237, 0.4); }
+}
