@@ -6,68 +6,68 @@
 
 @layer base {
   :root {
-    --background: 220 60% 3%;
-    --foreground: 210 50% 90%;
+    --background: 225 78% 3%;
+    --foreground: 214 30% 82%;
 
-    --card: 220 50% 10%;
-    --card-foreground: 210 50% 90%;
+    --card: 224 55% 10%;
+    --card-foreground: 214 30% 82%;
 
-    --popover: 220 55% 8%;
-    --popover-foreground: 210 50% 90%;
+    --popover: 224 60% 7%;
+    --popover-foreground: 214 30% 82%;
 
-    --primary: 42 75% 60%;
-    --primary-foreground: 220 60% 3%;
+    --primary: 43 68% 52%;
+    --primary-foreground: 225 78% 3%;
 
-    --secondary: 210 50% 20%;
-    --secondary-foreground: 210 50% 90%;
+    --secondary: 220 35% 18%;
+    --secondary-foreground: 214 30% 82%;
 
-    --muted: 210 25% 42%;
-    --muted-foreground: 210 25% 55%;
+    --muted: 215 20% 45%;
+    --muted-foreground: 215 20% 55%;
 
-    --accent: 207 72% 65%;
-    --accent-foreground: 220 60% 3%;
+    --accent: 218 100% 72%;
+    --accent-foreground: 225 78% 3%;
 
     --destructive: 0 75% 50%;
-    --destructive-foreground: 210 50% 90%;
+    --destructive-foreground: 214 30% 82%;
 
-    --border: 207 72% 65% / 0.2;
-    --input: 207 72% 65% / 0.15;
-    --ring: 207 72% 65%;
+    --border: 218 100% 72% / 0.15;
+    --input: 218 100% 72% / 0.12;
+    --ring: 218 100% 72%;
 
     --radius: 0.75rem;
 
-    /* STEAMI custom tokens */
-    --steami-bg: #03060f;
-    --steami-gold: 42 75% 60%;
-    --steami-gold-hex: #e8b84b;
-    --steami-gold2: 43 85% 72%;
-    --steami-cyan: 207 72% 65%;
-    --steami-cyan-hex: #63b3ed;
-    --steami-red: 0 95% 62%;
-    --steami-green: 155 75% 50%;
-    --steami-violet: 255 90% 75%;
-    --steami-orange: 28 95% 62%;
+    /* STEAMI custom tokens — premium editorial palette */
+    --steami-bg: #020817;
+    --steami-gold: 43 68% 52%;
+    --steami-gold-hex: #D4AF37;
+    --steami-gold2: 43 72% 66%;
+    --steami-cyan: 218 100% 72%;
+    --steami-cyan-hex: #6FA8FF;
+    --steami-red: 0 85% 55%;
+    --steami-green: 155 65% 45%;
+    --steami-violet: 255 80% 72%;
+    --steami-orange: 28 88% 58%;
 
-    --steami-glass-bg: rgba(12, 28, 58, 0.52);
-    --steami-glass-bg-hover: rgba(16, 36, 72, 0.68);
-    --steami-glass-blur: blur(18px) saturate(160%);
-    --steami-glass-border: rgba(99, 179, 237, 0.2);
+    --steami-glass-bg: rgba(10, 18, 42, 0.55);
+    --steami-glass-bg-hover: rgba(13, 27, 61, 0.65);
+    --steami-glass-blur: blur(18px) saturate(150%);
+    --steami-glass-border: rgba(111, 168, 255, 0.14);
     --steami-glass-radius: 16px;
 
-    --steami-modal-bg: rgba(5, 14, 32, 0.88);
+    --steami-modal-bg: rgba(5, 12, 28, 0.9);
 
     --font-mono: 'IBM Plex Mono', monospace;
     --font-serif: 'Playfair Display', Georgia, serif;
     --font-sans: 'IBM Plex Sans', sans-serif;
 
-    --sidebar-background: 220 50% 6%;
-    --sidebar-foreground: 210 50% 90%;
-    --sidebar-primary: 42 75% 60%;
-    --sidebar-primary-foreground: 220 60% 3%;
-    --sidebar-accent: 207 72% 65%;
-    --sidebar-accent-foreground: 220 60% 3%;
-    --sidebar-border: 207 72% 65% / 0.15;
-    --sidebar-ring: 207 72% 65%;
+    --sidebar-background: 224 55% 5%;
+    --sidebar-foreground: 214 30% 82%;
+    --sidebar-primary: 43 68% 52%;
+    --sidebar-primary-foreground: 225 78% 3%;
+    --sidebar-accent: 218 100% 72%;
+    --sidebar-accent-foreground: 225 78% 3%;
+    --sidebar-border: 218 100% 72% / 0.12;
+    --sidebar-ring: 218 100% 72%;
   }
 }
 
@@ -79,9 +79,9 @@
   body {
     background: var(--steami-bg);
     background-image:
-      radial-gradient(ellipse 80% 50% at 20% 10%, rgba(20, 50, 120, 0.45) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(10, 30, 80, 0.35) 0%, transparent 55%),
-      radial-gradient(ellipse 40% 30% at 50% 50%, rgba(5, 20, 55, 0.2) 0%, transparent 70%);
+      radial-gradient(ellipse 80% 50% at 20% 10%, rgba(15, 40, 100, 0.35) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(8, 24, 65, 0.25) 0%, transparent 55%),
+      radial-gradient(ellipse 40% 30% at 50% 50%, rgba(5, 16, 45, 0.15) 0%, transparent 70%);
     color: hsl(var(--foreground));
     font-family: var(--font-sans);
     min-height: 100vh;
@@ -100,7 +100,7 @@
 
   .glass-card:hover {
     background: var(--steami-glass-bg-hover);
-    border-color: rgba(99, 179, 237, 0.38);
+    border-color: rgba(111, 168, 255, 0.28);
   }
 
   .glass-card::after {
@@ -143,7 +143,7 @@
   .steami-badge-cyan {
     border-color: hsl(var(--steami-cyan));
     color: hsl(var(--steami-cyan));
-    background: rgba(99, 179, 237, 0.08);
+    background: rgba(111, 168, 255, 0.08);
   }
 
   .steami-badge-gold {
@@ -182,8 +182,8 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     padding: 11px 20px;
-    border: 1px solid rgba(99, 179, 237, 0.35);
-    background: rgba(20, 55, 110, 0.3);
+    border: 1px solid rgba(111, 168, 255, 0.25);
+    background: rgba(15, 40, 90, 0.3);
     backdrop-filter: blur(8px);
     color: hsl(var(--steami-cyan));
     cursor: pointer;
@@ -192,13 +192,13 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 
   .steami-btn:hover {
-    background: rgba(30, 75, 150, 0.45);
-    border-color: rgba(99, 179, 237, 0.6);
-    box-shadow: 0 0 20px rgba(99, 179, 237, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    background: rgba(20, 55, 120, 0.4);
+    border-color: rgba(111, 168, 255, 0.45);
+    box-shadow: 0 0 15px rgba(111, 168, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 
   .steami-btn-gold {
@@ -229,7 +229,7 @@
     content: '';
     flex: 1;
     height: 1px;
-    background: rgba(99, 179, 237, 0.1);
+    background: rgba(111, 168, 255, 0.08);
   }
 }
 
@@ -252,11 +252,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(99, 179, 237, 0.2);
+  background: rgba(111, 168, 255, 0.15);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 179, 237, 0.4);
+  background: rgba(111, 168, 255, 0.3);
 }
 
 @keyframes blink {
@@ -270,6 +270,104 @@
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 5px rgba(99, 179, 237, 0.2); }
-  50% { box-shadow: 0 0 20px rgba(99, 179, 237, 0.4); }
+  0%, 100% { box-shadow: 0 0 5px rgba(111, 168, 255, 0.15); }
+  50% { box-shadow: 0 0 15px rgba(111, 168, 255, 0.25); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes glow-border {
+  0%, 100% { border-color: rgba(111, 168, 255, 0.14); }
+  50% { border-color: rgba(111, 168, 255, 0.3); }
+}
+
+/* ── Micro-interaction utilities ──────────────────────────────── */
+.glass-card {
+  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1),
+              border-color 0.25s ease,
+              box-shadow 0.3s ease,
+              background 0.25s ease;
+  will-change: transform;
+}
+
+.glass-card:hover {
+  transform: translateY(-3px) scale(1.008);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5),
+              0 0 20px rgba(111, 168, 255, 0.06),
+              inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.glass-card:active {
+  transform: translateY(-1px) scale(0.995);
+  transition-duration: 0.08s;
+}
+
+.steami-btn {
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  will-change: transform, box-shadow;
+}
+
+.steami-btn:active {
+  transform: scale(0.96);
+  transition-duration: 0.08s;
+}
+
+.steami-badge {
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.steami-badge:hover {
+  transform: scale(1.05);
+}
+
+/* Shimmer loading effect */
+.shimmer {
+  background: linear-gradient(90deg,
+    rgba(111, 168, 255, 0.03) 25%,
+    rgba(111, 168, 255, 0.08) 50%,
+    rgba(111, 168, 255, 0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+/* Focus glow for interactive elements */
+.steami-btn:focus-visible,
+.glass-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(111, 168, 255, 0.4),
+              0 0 15px rgba(111, 168, 255, 0.1);
+}
+
+/* Smooth link underline animation */
+.nav-link-animated {
+  position: relative;
+}
+.nav-link-animated::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: hsl(var(--steami-cyan));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+.nav-link-animated:hover::after,
+.nav-link-animated.active::after {
+  transform: scaleX(1);
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .glass-card,
+  .steami-btn,
+  .steami-badge {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
