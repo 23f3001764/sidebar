@@ -1,5 +1,12 @@
+/**
+ * ChatDashboard — mobile-first redesign.
+ *
+ * Mobile (< sm): full-screen, single panel that toggles between
+ *   conversation list and active chat using a back arrow.
+ * Desktop (≥ sm): side-by-side 300px user list + chat window.
+ */
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, ArrowLeft } from "lucide-react";
 import { useChat } from "../../hooks/useChat";
 import { getLocalUser, setLocalUser } from "../../lib/chat";
 import type { LocalUser } from "../../types/chat";
@@ -7,13 +14,12 @@ import UserSearch  from "./UserSearch";
 import ChatWindow  from "./ChatWindow";
 import LoginPrompt from "./LoginPrompt";
 
-interface Props {
-  onClose: () => void;
-}
+interface Props { onClose: () => void }
 
 export default function ChatDashboard({ onClose }: Props) {
-  // localUser may be null on first open — LoginPrompt handles that case
   const [localUser, setLocalUserState] = useState<LocalUser | null>(getLocalUser);
+  // On mobile, track which panel is shown: "list" or "chat"
+  const [mobileView, setMobileView] = useState<"list" | "chat">("list");
 
   const {
     users, conversations, messages,
@@ -24,7 +30,6 @@ export default function ChatDashboard({ onClose }: Props) {
     sendMsg,
   } = useChat();
 
-  // Unread per sender for badges
   const unreadBySender: Record<string, number> = {};
   conversations.forEach(c => {
     if (c.unread_count > 0) unreadBySender[c.user.id] = c.unread_count;
@@ -34,16 +39,24 @@ export default function ChatDashboard({ onClose }: Props) {
     setLocalUserState(user);
   }
 
+  function selectUser(u: typeof selectedUser) {
+    setSelectedUser(u);
+    setMobileView("chat");
+  }
+
   return (
-    /* ── Backdrop ─────────────────────────────────────────────────────────── */
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[80] flex items-center justify-center p-0 sm:p-4"
       style={{ background: "rgba(2,4,12,0.82)", backdropFilter: "blur(14px)" }}
       onClick={onClose}
     >
-      {/* ── Glass card ─────────────────────────────────────────────────────── */}
       <div
-        className="relative flex w-full max-w-[860px] h-[560px] rounded-2xl overflow-hidden shadow-2xl"
+        className={[
+          "relative flex overflow-hidden shadow-2xl",
+          // Full screen on mobile, fixed size on desktop
+          "w-full h-full sm:w-[860px] sm:h-[560px]",
+          "sm:rounded-2xl",
+        ].join(" ")}
         style={{
           background:    "rgba(8,12,24,0.97)",
           backdropFilter:"blur(32px)",
@@ -52,34 +65,39 @@ export default function ChatDashboard({ onClose }: Props) {
         onClick={e => e.stopPropagation()}
       >
         {/* Close */}
-        <button
-          onClick={onClose}
-          className="absolute top-3.5 right-3.5 z-10 p-1.5 rounded-full
-            bg-white/[0.08] hover:bg-white/20 text-white/60 hover:text-white transition-colors"
-        >
+        <button onClick={onClose}
+          className="absolute top-3.5 right-3.5 z-20 p-1.5 rounded-full
+            bg-white/[0.08] hover:bg-white/20 text-white/60 hover:text-white transition-colors">
           <X size={14} />
         </button>
 
-        {/* ── No user: show login prompt ─────────────────────────────────── */}
         {!localUser ? (
-          <div className="w-full">
-            <LoginPrompt onLogin={handleLogin} />
-          </div>
+          <div className="w-full"><LoginPrompt onLogin={handleLogin} /></div>
         ) : (
           <>
-            {/* ── LEFT: user list ──────────────────────────────────────── */}
-            <div
-              className="w-[300px] shrink-0 flex flex-col border-r border-white/[0.07] p-4"
-            >
+            {/* ── LEFT panel — user list ─────────────────────────────────
+                Desktop: always visible (w-[300px])
+                Mobile: shown when mobileView === "list"
+            ──────────────────────────────────────────────────────────── */}
+            <div className={[
+              "flex flex-col border-r border-white/[0.07] p-4",
+              // Desktop: fixed width, always shown
+              "sm:flex sm:w-[300px] sm:relative sm:translate-x-0",
+              // Mobile: full width, conditionally shown
+              "absolute inset-0",
+              mobileView === "list"
+                ? "flex w-full translate-x-0 z-10"
+                : "hidden sm:flex",
+            ].join(" ")}>
               {/* Header */}
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-3 pr-8">
                 <div className="flex items-center gap-2">
                   <img
                     src={localUser.avatar || `https://i.pravatar.cc/150?u=${localUser.id}`}
                     alt={localUser.username}
                     className="w-7 h-7 rounded-full object-cover"
                   />
-                  <span className="text-white text-[12px] font-semibold truncate max-w-[110px]">
+                  <span className="text-white text-[12px] font-semibold truncate max-w-[120px]">
                     {localUser.username}
                   </span>
                 </div>
@@ -96,15 +114,49 @@ export default function ChatDashboard({ onClose }: Props) {
                   conversations={conversations}
                   query={searchQuery}
                   onQuery={setSearchQuery}
-                  onSelect={u => { setSelectedUser(u); setError(""); }}
+                  onSelect={u => selectUser(u)}
                   selectedId={selectedUser?.id}
                   unreadBySender={unreadBySender}
                 />
               </div>
             </div>
 
-            {/* ── RIGHT: chat window ────────────────────────────────────── */}
-            <div className="flex-1 min-w-0 flex flex-col">
+            {/* ── RIGHT panel — chat window ──────────────────────────────
+                Desktop: takes remaining space
+                Mobile: full width, shown when mobileView === "chat"
+            ──────────────────────────────────────────────────────────── */}
+            <div className={[
+              "flex flex-col",
+              // Desktop
+              "sm:flex sm:flex-1 sm:min-w-0 sm:relative sm:translate-x-0",
+              // Mobile
+              "absolute inset-0",
+              mobileView === "chat"
+                ? "flex w-full translate-x-0 z-10"
+                : "hidden sm:flex",
+            ].join(" ")}>
+              {/* Mobile back button */}
+              {mobileView === "chat" && (
+                <div className="flex sm:hidden items-center gap-2 px-4 py-3 border-b border-white/[0.07] shrink-0">
+                  <button
+                    onClick={() => setMobileView("list")}
+                    className="p-1.5 rounded-lg bg-white/[0.07] text-white/60 hover:text-white"
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+                  {selectedUser && (
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={selectedUser.avatar}
+                        alt={selectedUser.username}
+                        className="w-7 h-7 rounded-full object-cover"
+                      />
+                      <span className="text-white text-[13px] font-semibold">{selectedUser.username}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {selectedUser ? (
                 <ChatWindow
                   messages={messages}
@@ -114,7 +166,7 @@ export default function ChatDashboard({ onClose }: Props) {
                   onSend={sendMsg}
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center h-full gap-2 text-white/20">
+                <div className="hidden sm:flex flex-col items-center justify-center h-full gap-2 text-white/20">
                   <span className="text-3xl">💬</span>
                   <p className="text-xs">Select someone to start a conversation</p>
                 </div>
@@ -127,9 +179,9 @@ export default function ChatDashboard({ onClose }: Props) {
         {error && (
           <div className="absolute bottom-0 left-0 right-0 px-4 py-2
             bg-red-950/90 border-t border-red-800/50 text-red-300 text-[10px]
-            flex items-center justify-between">
+            flex items-center justify-between z-30">
             <span>⚠ {error}</span>
-            <button onClick={() => setError("")} className="font-bold">✕</button>
+            <button onClick={() => setError("")} className="font-bold ml-2">✕</button>
           </div>
         )}
       </div>
