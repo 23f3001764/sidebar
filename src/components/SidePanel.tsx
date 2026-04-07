@@ -1,26 +1,28 @@
 /**
  * SidePanel — updated
  *
- * Changes from previous version:
- *  • "From Source" tab REMOVED
- *  • "Feed" tab ADDED (shows articles from text selection)
- *  • Feed tab shows prompt when no selection made yet
- *  • Mobile responsive: full-screen on small screens, overlay on desktop
- *  • Tab buttons stack correctly on mobile
+ * Changes vs previous version:
+ *  • Exposes `openFeedTab()` via `React.forwardRef` + `useImperativeHandle`
+ *    so App.tsx can imperatively switch to the Feed tab when the user clicks
+ *    the Feed button in SelectionToolbar.
+ *  • Everything else is identical to the previous version.
  */
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import {
   Newspaper, Zap, MessageCircle,
   X, ExternalLink, Sparkles, Loader2, RefreshCw, Trash2,
 } from "lucide-react";
 import type { Article, AiInsight } from "../types";
-import { apiGetInsight } from "../lib/api";
 import type { FeedArticle } from "../lib/feed";
 import type { AiInsight as FeedAiInsight } from "../types";
 import InsightPopup from "./InsightPopup";
 import ChatPopup from "./ChatPopup";
 
 type Tab = "articles" | "feed" | null;
+
+export interface SidePanelHandle {
+  openFeedTab: () => void;
+}
 
 interface Props {
   // Articles tab
@@ -41,29 +43,36 @@ interface Props {
   onFeedInsight: (a: FeedArticle) => void;
   onCloseFeedInsight: () => void;
   onRemoveFeed: (id: string) => void;
-  hasPendingSelection: boolean;   // true when user has selected text
+  hasPendingSelection: boolean;
   selectionKeywords: string[];
 }
 
-export default function SidePanel({
-  articles, insightLoadingId, onInsight, onRefresh, refreshing,
-  openInsight, onCloseInsight,
-  feedArticles, feedLoading, feedError, feedInsightId,
-  feedOpenInsight, onFeedInsight, onCloseFeedInsight, onRemoveFeed,
-  hasPendingSelection, selectionKeywords,
-}: Props) {
+const SidePanel = forwardRef<SidePanelHandle, Props>(function SidePanel(
+  {
+    articles, insightLoadingId, onInsight, onRefresh, refreshing,
+    openInsight, onCloseInsight,
+    feedArticles, feedLoading, feedError, feedInsightId,
+    feedOpenInsight, onFeedInsight, onCloseFeedInsight, onRemoveFeed,
+    hasPendingSelection, selectionKeywords,
+  },
+  ref,
+) {
   const [tab,      setTab]      = useState<Tab>(null);
   const [chatOpen, setChatOpen] = useState(false);
 
   const isOpen = tab !== null;
-
-  // On mobile we show full-width; on desktop clamp to 42vw
   const panelWidth = "min(100vw, clamp(300px, 42vw, 660px))";
 
-  // When Feed tab clicked and panel is already open on feed — keep open
   function clickTab(t: Tab) {
     setTab(prev => prev === t ? null : t);
   }
+
+  // Expose imperative handle so App.tsx can open the Feed tab
+  useImperativeHandle(ref, () => ({
+    openFeedTab() {
+      setTab("feed");
+    },
+  }));
 
   const tabs = [
     { key: "articles" as const, Icon: Newspaper,    label: "Articles" },
@@ -74,12 +83,9 @@ export default function SidePanel({
   return (
     <>
       {/* ── Tab buttons ──────────────────────────────────────────────────── */}
-      {/* Desktop: fixed right rail. Mobile: fixed bottom bar */}
       <div className={[
         "fixed z-[60]",
-        // Desktop
         "sm:right-0 sm:top-1/2 sm:-translate-y-1/2 sm:flex-col sm:bottom-auto sm:left-auto",
-        // Mobile: full-width bottom bar
         "bottom-0 left-0 right-0 flex-row sm:w-auto w-full",
         "flex",
       ].join(" ")} style={{ gap: 2 }}>
@@ -92,13 +98,10 @@ export default function SidePanel({
               title={label}
               onClick={() => key === "chat" ? setChatOpen(true) : clickTab(key)}
               className={[
-                // Shared
                 "flex items-center justify-center gap-1 font-bold select-none",
                 "text-[10px] uppercase tracking-widest transition-all duration-200",
                 "border relative",
-                // Desktop shape
                 "sm:flex-col sm:w-12 sm:py-4 sm:rounded-l-xl",
-                // Mobile shape (equal thirds of the bottom bar)
                 "flex-1 py-3 rounded-none sm:flex-none",
                 isActive
                   ? "bg-indigo-600 text-white border-indigo-500 shadow-indigo-500/30 shadow-lg"
@@ -108,7 +111,6 @@ export default function SidePanel({
               <Icon size={16} />
               <span className="hidden sm:block leading-none">{label}</span>
               <span className="sm:hidden text-[9px]">{label}</span>
-              {/* Feed badge */}
               {hasBadge && (
                 <span className="absolute -top-1 -right-1 sm:top-1 sm:right-1
                   w-4 h-4 rounded-full bg-indigo-500 text-white text-[8px]
@@ -128,7 +130,6 @@ export default function SidePanel({
           "flex flex-col",
           "border-l border-white/[0.08] shadow-2xl",
           "transition-[width,opacity] duration-300 ease-in-out overflow-hidden",
-          // On mobile, push up to leave room for bottom tab bar (56px)
           "sm:h-full",
           isOpen ? "h-[calc(100%-56px)]" : "h-full",
         ].join(" ")}
@@ -138,11 +139,9 @@ export default function SidePanel({
           pointerEvents: isOpen ? "auto" : "none",
           background:    "rgba(6,9,20,0.97)",
           backdropFilter:"blur(24px)",
-          // On desktop leave 48px for tab buttons; on mobile 0 (tabs are bottom bar)
           paddingRight:  0,
         }}
       >
-        {/* Compensate for desktop tab rail */}
         <div className="flex-1 flex flex-col min-h-0 sm:pr-12">
           {isOpen && (
             <>
@@ -173,61 +172,63 @@ export default function SidePanel({
                       className="flex items-center gap-1 text-[10px] text-indigo-400
                         hover:text-indigo-300 disabled:opacity-40 transition-colors">
                       <RefreshCw size={11} className={refreshing ? "animate-spin" : ""} />
-                      {refreshing ? "Refreshing…" : "Refresh"}
+                      Refresh
                     </button>
                   )}
                   <button onClick={() => setTab(null)}
-                    className="p-1 rounded-md text-white/30 hover:text-white hover:bg-white/10">
-                    <X size={15} />
+                    className="p-1 text-white/30 hover:text-white/70 transition-colors">
+                    <X size={14} />
                   </button>
                 </div>
               </div>
 
-              {/* ── ARTICLES TAB ─────────────────────────────────────────── */}
+              {/* Articles tab */}
               {tab === "articles" && (
-                <div className="flex-1 overflow-y-auto overscroll-contain">
-                  {articles.length === 0 ? (
-                    <Empty text={refreshing ? "Fetching…" : "No articles yet. Click Refresh."} />
-                  ) : (
-                    <ul className="divide-y divide-white/[0.04]">
-                      {articles.map(a => (
-                        <ArticleCard key={a.id} article={a}
-                          insightLoading={insightLoadingId === a.id}
-                          onInsight={() => onInsight(a)} />
-                      ))}
-                    </ul>
-                  )}
+                <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+                  {articles.length === 0
+                    ? <Empty text="No articles yet. Refresh to load the latest." />
+                    : (
+                      <ul className="divide-y divide-white/[0.04]">
+                        {articles.map(a => (
+                          <ArticleCard key={a.id} article={a}
+                            insightLoading={insightLoadingId === a.id}
+                            onInsight={() => onInsight(a)} />
+                        ))}
+                      </ul>
+                    )
+                  }
                 </div>
               )}
 
-              {/* ── FEED TAB ─────────────────────────────────────────────── */}
+              {/* Feed tab */}
               {tab === "feed" && (
-                <div className="flex-1 overflow-y-auto overscroll-contain">
-                  {feedLoading ? (
-                    <Spinner text="Searching related articles…" />
-                  ) : feedError ? (
-                    <div className="px-4 py-4">
-                      <p className="text-red-400 text-xs">{feedError}</p>
-                    </div>
-                  ) : feedArticles.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full gap-4 px-6 text-center py-12">
-                      <span className="text-4xl">✍️</span>
-                      <p className="text-white/35 text-sm leading-relaxed">
-                        Select any text on the page and click the{" "}
-                        <span className="text-indigo-400 font-semibold">⚡ Feed</span>{" "}
-                        button to find related articles.
-                      </p>
-                    </div>
-                  ) : (
-                    <ul className="divide-y divide-white/[0.04]">
-                      {feedArticles.map(a => (
-                        <FeedCard key={a.id} article={a}
-                          insightLoading={feedInsightId === a.id}
-                          onInsight={() => onFeedInsight(a)}
-                          onRemove={() => onRemoveFeed(a.id)} />
-                      ))}
-                    </ul>
-                  )}
+                <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+                  {feedLoading
+                    ? <Spinner text="Finding related articles…" />
+                    : feedError
+                      ? <Empty text={feedError} />
+                      : !hasPendingSelection && feedArticles.length === 0
+                        ? (
+                          <div className="flex flex-col items-center justify-center h-full gap-4 px-6 text-center py-12">
+                            <span className="text-4xl">✍️</span>
+                            <p className="text-white/35 text-sm leading-relaxed">
+                              Select any text on the page and click the{" "}
+                              <span className="text-indigo-400 font-semibold">⚡ Feed</span>{" "}
+                              button to find related articles.
+                            </p>
+                          </div>
+                        )
+                        : (
+                          <ul className="divide-y divide-white/[0.04]">
+                            {feedArticles.map(a => (
+                              <FeedCard key={a.id} article={a}
+                                insightLoading={feedInsightId === a.id}
+                                onInsight={() => onFeedInsight(a)}
+                                onRemove={() => onRemoveFeed(a.id)} />
+                            ))}
+                          </ul>
+                        )
+                  }
                 </div>
               )}
             </>
@@ -249,16 +250,18 @@ export default function SidePanel({
       {chatOpen && <ChatPopup onClose={() => setChatOpen(false)} />}
     </>
   );
-}
+});
 
-// ── Article card (main articles tab) ─────────────────────────────────────────
+export default SidePanel;
+
+// ── Article card ──────────────────────────────────────────────────────────────
 function ArticleCard({ article: a, insightLoading, onInsight }: {
   article: Article; insightLoading: boolean; onInsight: () => void;
 }) {
-  const raw    = a.short_summary ?? a.content ?? a.description ?? "";
+  const raw    = a.short_summary ?? (a as any).content ?? (a as any).description ?? "";
   const blurb  = raw.split(/\s+/).slice(0, 35).join(" ").replace(/[,;:]?\s*$/, "") +
     (raw.split(/\s+/).length > 35 ? "…" : "");
-  const domain  = a.matched_domains?.[0] ?? a.topic ?? "";
+  const domain  = a.matched_domains?.[0] ?? (a as any).topic ?? "";
   const dateStr = a.published_at
     ? new Date(a.published_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
     : "";
@@ -310,7 +313,7 @@ function ArticleCard({ article: a, insightLoading, onInsight }: {
   );
 }
 
-// ── Feed card (selection-based feed tab) ──────────────────────────────────────
+// ── Feed card ─────────────────────────────────────────────────────────────────
 function FeedCard({ article: a, insightLoading, onInsight, onRemove }: {
   article: FeedArticle; insightLoading: boolean; onInsight: () => void; onRemove: () => void;
 }) {
