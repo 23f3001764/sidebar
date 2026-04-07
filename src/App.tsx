@@ -1,29 +1,9 @@
-/**
- * App.tsx — fixed
- *
- * Root cause of the crash:
- *   useDeepLink() called useSearchParams() which needs <BrowserRouter> context.
- *   AppShell was calling useDeepLink BEFORE BrowserRouter was mounted.
- *
- * Fix:
- *   1. Move <BrowserRouter> to the very top (wraps AppShell entirely).
- *   2. Replace the shared useDeepLink call in AppShell with a dedicated
- *      <InsightDeepLink> component that lives INSIDE the router tree.
- *   3. Each page (ExplainerPage, ResearchPage) calls useDeepLink internally
- *      — they already live inside <Routes> so they have router context.
- *
- * Share-link fix:
- *   The InsightPopup "Share" button now copies the URL including ?insight=<id>.
- *   setDeepLinkParam("insight", id) is called before opening the popup so the
- *   URL is always shareable when an insight is open.
- */
-
 import { QueryClient, QueryClientProvider }              from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, useSearchParams } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster }           from "@/components/ui/toaster";
 import { TooltipProvider }   from "@/components/ui/tooltip";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 import ExplainerPage   from "./pages/ExplainerPage";
 import ResearchPage    from "./pages/ResearchPage";
@@ -43,49 +23,28 @@ import type { AiInsight } from "./types";
 
 const queryClient = new QueryClient();
 
-// ─────────────────────────────────────────────────────────────────────────────
-// InsightDeepLink — reads ?insight=<id> from URL, fetches + opens popup.
-// Must be inside <BrowserRouter> — rendered as sibling of <Routes>.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Handles ?insight=<id> deep-link — must be inside <BrowserRouter> ──────────
 function InsightDeepLink({
   onOpen,
-}: {
-  onOpen: (article: any, insight: AiInsight) => void;
-}) {
+}: { onOpen: (article: any, insight: AiInsight) => void }) {
   const [params] = useSearchParams();
-
   useEffect(() => {
     const id = params.get("insight");
     if (!id) return;
-
     apiGetInsight(id)
       .then(resp => {
-        const articleUrl = resp.ai_insight.article_url ?? "";
-        let hostname = "Shared Insight";
-        try { if (articleUrl) hostname = new URL(articleUrl).hostname; } catch { /* ignore */ }
-        onOpen(
-          {
-            id,
-            title:       hostname,
-            source:      "STEAMI",
-            article_url: articleUrl,
-            url:         articleUrl,
-          },
-          resp.ai_insight,
-        );
+        const url = resp.ai_insight.article_url ?? "";
+        let host  = "Shared Insight";
+        try { if (url) host = new URL(url).hostname; } catch { /* ignore */ }
+        onOpen({ id, title: host, source: "STEAMI", article_url: url, url }, resp.ai_insight);
       })
-      .catch(() => { /* insight not found — silently ignore */ });
-    // Run only once on mount
+      .catch(() => { /* insight not found */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AppShell — all main state + layout.
-// Rendered INSIDE <BrowserRouter> so useSearchParams works in children.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── AppShell ──────────────────────────────────────────────────────────────────
 function AppShell() {
   const {
     articles,
@@ -101,6 +60,7 @@ function AppShell() {
     feedLoading, feedError, setFeedError,
     selectionText, setSelectionText,
     keywords,
+    feedTabOpen,   setFeedTabOpen,
     feedInsightId,
     feedOpenInsight, setFeedOpenInsight,
     fetchFeedForSelection,
@@ -108,21 +68,23 @@ function AppShell() {
     removeFeedItem,
   } = useFeed();
 
-  // Insight opened via ?insight= deep-link
-  const [deepInsight, setDeepInsight] = useState<{
-    article: any;
-    insight: AiInsight;
-  } | null>(null);
+  // Deep-linked insight popup
+  const [deepInsight, setDeepInsight] = useState<{ article: any; insight: AiInsight } | null>(null);
 
   function handleDiary(text: string) {
-    // Wire to your useSteamiStore addDiaryEntry here
+    // Wire to useSteamiStore addDiaryEntry here
     console.log("[Diary] Save:", text);
   }
 
   function handleFeed(text: string) {
     setSelectionText(text);
     fetchFeedForSelection(text);
+    // feedTabOpen becomes true inside useFeed → SidePanel switches to Feed tab
   }
+
+  const handleFeedTabOpened = useCallback(() => {
+    setFeedTabOpen(false);  // reset so it doesn't re-trigger
+  }, [setFeedTabOpen]);
 
   function closeDeepInsight() {
     setDeepInsight(null);
@@ -135,20 +97,16 @@ function AppShell() {
     <>
       {/* Error banner */}
       {(error || feedError) && (
-        <div
-          className="fixed top-0 left-0 right-0 z-[90] flex items-center
-            justify-between gap-3 px-4 py-2 text-xs
-            bg-red-950/90 border-b border-red-800/50 text-red-300 backdrop-blur"
-        >
+        <div className="fixed top-0 left-0 right-0 z-[90] flex items-center
+          justify-between gap-3 px-4 py-2 text-xs
+          bg-red-950/90 border-b border-red-800/50 text-red-300 backdrop-blur">
           <span>⚠ {error || feedError}</span>
-          <button
-            onClick={() => { setError(""); setFeedError(""); }}
-            className="font-bold text-red-400 hover:text-red-200"
-          >✕</button>
+          <button onClick={() => { setError(""); setFeedError(""); }}
+            className="font-bold text-red-400 hover:text-red-200">✕</button>
         </div>
       )}
 
-      {/* Initial loading overlay */}
+      {/* Loading overlay */}
       {loading && articles.length === 0 && (
         <div className="fixed inset-0 z-[65] flex items-center justify-center
           bg-black/65 backdrop-blur-sm pointer-events-none">
@@ -160,8 +118,7 @@ function AppShell() {
         </div>
       )}
 
-      {/* ── Page routes ────────────────────────────────────────────────── */}
-      {/* pb-14 on mobile leaves room for the bottom tab bar */}
+      {/* Routes — bottom padding on mobile for tab bar */}
       <div className="pb-14 sm:pb-0">
         <Routes>
           <Route path="/"            element={<ExplainerPage />} />
@@ -172,26 +129,13 @@ function AppShell() {
         </Routes>
       </div>
 
-      {/* Handles ?insight=<id> in the URL — must be inside <BrowserRouter> */}
-      <InsightDeepLink
-        onOpen={(article, insight) => setDeepInsight({ article, insight })}
-      />
+      {/* Deep-link handler (inside BrowserRouter = has router context) */}
+      <InsightDeepLink onOpen={(art, ins) => setDeepInsight({ article: art, insight: ins })} />
 
-      {/* Floating text-selection toolbar (Diary + Feed buttons) */}
+      {/* Text selection toolbar */}
       <SelectionToolbar onDiary={handleDiary} onFeed={handleFeed} />
 
-      {/*
-        Z-index layers:
-          z-30   News ticker
-          z-50   SidePanel body
-          z-60   SidePanel tab buttons  ← always above page modals (z-[150])
-                 Wait — tab buttons at z-60 would be BELOW page modals at z-[150].
-                 This is intentional: page modals cover the panel, but the
-                 tab buttons still show (they're positioned outside the modal).
-          z-[150] Page modals (ExplainerPage, ResearchPage, SimulationsPage)
-          z-[200] AdminPanel
-          z-[210] InsightPopup (deep-link) — must be above everything
-      */}
+      {/* Side panel */}
       <SidePanel
         articles={articles}
         insightLoadingId={insightLoadingId}
@@ -210,36 +154,33 @@ function AppShell() {
         onRemoveFeed={removeFeedItem}
         hasPendingSelection={!!selectionText}
         selectionKeywords={keywords}
+        feedTabOpen={feedTabOpen}
+        onFeedTabOpened={handleFeedTabOpened}
       />
 
-      {/* News ticker — above mobile tab bar */}
+      {/* News ticker */}
       {articles.length > 0 && (
         <div className="fixed bottom-14 sm:bottom-5 left-5 z-30">
           <NewsPopup articles={articles} />
         </div>
       )}
 
-      {/* Deep-link insight popup — z-[210] so it's above everything */}
+      {/* Deep-link insight popup */}
       {deepInsight && (
-        <div style={{ zIndex: 210, position: "relative" }}>
-          <InsightPopup
-            article={deepInsight.article}
-            insight={deepInsight.insight}
-            onClose={closeDeepInsight}
-          />
-        </div>
+        <InsightPopup
+          article={deepInsight.article}
+          insight={deepInsight.insight}
+          onClose={closeDeepInsight}
+        />
       )}
 
-      {/* Admin panel — tiny dot bottom-left, password: admin123 */}
+      {/* Admin panel */}
       <AdminPanel />
     </>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Root — BrowserRouter wraps EVERYTHING.
-// This is the critical fix: router context is available everywhere.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Root ──────────────────────────────────────────────────────────────────────
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>

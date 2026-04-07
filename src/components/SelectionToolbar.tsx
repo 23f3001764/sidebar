@@ -1,83 +1,86 @@
 /**
  * SelectionToolbar
  *
- * Fixes vs previous version:
- *  1. Position is now `position: fixed` using raw clientX/Y — the previous
- *     version added window.scrollX/Y which double-counted scroll and pushed
- *     the toolbar far to the right / bottom.
- *  2. Feed button calls onFeed AND onOpenFeedTab so the sidebar switches to
- *     the Feed tab automatically.
- *  3. Touch: toolbar centred at bottom of viewport (unchanged).
+ * Floats near selected text. Shows:
+ *   📓 Diary — save selection to research diary
+ *   ⚡ Feed  — fetch related articles, open Feed tab in SidePanel
+ *
+ * Fix: The toolbar now calls onFeed(text) which should:
+ *   1. Call fetchFeedForSelection(text) (sends POST to backend)
+ *   2. Open the "feed" tab in SidePanel
+ * Both happen in App.tsx's handleFeed().
+ *
+ * The "Failed to Fetch" error was because the toolbar showed an error
+ * inline — now errors are passed up to the parent to show in SidePanel.
  */
 import { useEffect, useRef, useState } from "react";
 import { BookOpen, Zap, X } from "lucide-react";
 
 interface Props {
-  onDiary:       (text: string) => void;
-  onFeed:        (text: string) => void;
-  /** Called when Feed is clicked so the sidebar can open the Feed tab */
-  onOpenFeedTab: () => void;
+  onDiary: (text: string) => void;
+  onFeed:  (text: string) => void;
 }
 
 interface Pos { x: number; y: number }
 
-export default function SelectionToolbar({ onDiary, onFeed, onOpenFeedTab }: Props) {
+export default function SelectionToolbar({ onDiary, onFeed }: Props) {
   const [pos,  setPos]  = useState<Pos | null>(null);
   const [text, setText] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
+  function dismiss() { setPos(null); setText(""); }
+
   useEffect(() => {
-    function handleMouseUp(e: MouseEvent) {
-      // Small delay so browser finishes updating the selection
+    function onMouseUp(e: MouseEvent) {
       setTimeout(() => {
         const sel      = window.getSelection();
         const selected = sel?.toString().trim() ?? "";
-        if (!selected || selected.length < 3) {
-          setPos(null);
-          setText("");
-          return;
-        }
+        // Ignore if user clicked inside our toolbar
+        if (ref.current?.contains(e.target as Node)) return;
+        if (!selected || selected.length < 3) { dismiss(); return; }
         setText(selected);
-
-        // Use raw clientX/Y — the toolbar is `position: fixed` so we must NOT
-        // add scrollX/Y (that was the bug causing it to appear far off-screen).
-        const x = Math.min(e.clientX, window.innerWidth - 140);
-        const y = Math.max(e.clientY - 56, 8);   // 56px above cursor, min 8px from top
-        setPos({ x, y });
+        // Position above the mouse-up point, centred
+        setPos({
+          x: e.clientX + window.scrollX,
+          y: e.clientY + window.scrollY - 60,
+        });
       }, 10);
     }
 
-    function handleMouseDown(e: MouseEvent) {
+    function onMouseDown(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        setPos(null);
-        setText("");
+        // Only dismiss if clicking outside AND no text selected
+        setTimeout(() => {
+          const sel = window.getSelection()?.toString().trim() ?? "";
+          if (!sel) dismiss();
+        }, 0);
       }
     }
 
-    document.addEventListener("mouseup",   handleMouseUp);
-    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("mouseup",   onMouseUp);
+    document.addEventListener("mousedown", onMouseDown);
     return () => {
-      document.removeEventListener("mouseup",   handleMouseUp);
-      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("mouseup",   onMouseUp);
+      document.removeEventListener("mousedown", onMouseDown);
     };
   }, []);
 
-  // Touch support
+  // Touch support for mobile
   useEffect(() => {
-    function handleTouchEnd() {
+    function onTouchEnd() {
       setTimeout(() => {
         const sel      = window.getSelection();
         const selected = sel?.toString().trim() ?? "";
         if (!selected || selected.length < 3) return;
         setText(selected);
         setPos({
-          x: window.innerWidth / 2 - 70,
-          y: window.innerHeight - 120,
+          x: window.scrollX + window.innerWidth / 2,
+          y: window.scrollY + window.innerHeight - 130,
         });
       }, 80);
     }
-    document.addEventListener("touchend", handleTouchEnd);
-    return () => document.removeEventListener("touchend", handleTouchEnd);
+    document.addEventListener("touchend", onTouchEnd);
+    return () => document.removeEventListener("touchend", onTouchEnd);
   }, []);
 
   if (!pos || !text) return null;
@@ -85,26 +88,21 @@ export default function SelectionToolbar({ onDiary, onFeed, onOpenFeedTab }: Pro
   return (
     <div
       ref={ref}
-      className="fixed z-[100] flex items-center gap-1.5 px-2 py-1.5 rounded-xl shadow-2xl"
+      className="fixed z-[100] flex items-center gap-1 px-2 py-1.5 rounded-xl shadow-2xl select-none"
       style={{
-        left:           pos.x,
-        top:            pos.y,
-        background:     "rgba(8,12,24,0.97)",
-        border:         "1px solid rgba(255,255,255,0.12)",
-        backdropFilter: "blur(20px)",
-        transform:      "translateX(-50%)",
-        pointerEvents:  "auto",
+        left:          pos.x,
+        top:           pos.y,
+        transform:     "translateX(-50%)",
+        background:    "rgba(8,12,24,0.97)",
+        border:        "1px solid rgba(255,255,255,0.12)",
+        backdropFilter:"blur(20px)",
+        pointerEvents: "auto",
       }}
     >
-      {/* Diary button */}
+      {/* Diary */}
       <button
         onMouseDown={e => e.preventDefault()}
-        onClick={() => {
-          onDiary(text);
-          setPos(null);
-          setText("");
-          window.getSelection()?.removeAllRanges();
-        }}
+        onClick={() => { onDiary(text); dismiss(); }}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
           bg-amber-500/20 hover:bg-amber-500/40 text-amber-300
           text-[11px] font-semibold transition-colors"
@@ -114,20 +112,14 @@ export default function SelectionToolbar({ onDiary, onFeed, onOpenFeedTab }: Pro
         Diary
       </button>
 
-      {/* Feed button */}
+      {/* Feed */}
       <button
         onMouseDown={e => e.preventDefault()}
-        onClick={() => {
-          onFeed(text);        // trigger the API call
-          onOpenFeedTab();     // open the Feed tab in the sidebar
-          setPos(null);
-          setText("");
-          window.getSelection()?.removeAllRanges();
-        }}
+        onClick={() => { onFeed(text); dismiss(); }}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
           bg-indigo-500/25 hover:bg-indigo-500/50 text-indigo-300
           text-[11px] font-semibold transition-colors"
-        title="Find related articles in Feed"
+        title="Find related articles"
       >
         <Zap size={12} />
         Feed
@@ -136,11 +128,7 @@ export default function SelectionToolbar({ onDiary, onFeed, onOpenFeedTab }: Pro
       {/* Dismiss */}
       <button
         onMouseDown={e => e.preventDefault()}
-        onClick={() => {
-          setPos(null);
-          setText("");
-          window.getSelection()?.removeAllRanges();
-        }}
+        onClick={dismiss}
         className="p-1 text-white/25 hover:text-white/60 transition-colors"
       >
         <X size={10} />

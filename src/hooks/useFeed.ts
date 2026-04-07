@@ -1,12 +1,11 @@
 /**
- * useFeed — manages the Feed tab state.
+ * useFeed — fixed version
  *
- * Flow:
- *  1. User selects text anywhere on page → selectionText is set
- *  2. User clicks the floating "Feed" button → fetchFeedForSelection() called
- *  3. POST /api/feed/from-selection → articles saved + returned
- *  4. Articles shown in Feed tab of SidePanel
- *  5. Each article has an "AI Insight" button → feedItemInsight()
+ * Key fixes:
+ * 1. feedFromSelection error was silent — now surfaces to feedError state
+ * 2. feedTabOpen state added — SidePanel reads this to auto-switch to Feed tab
+ *    when fetchFeedForSelection is called from the toolbar
+ * 3. Loads previously saved feed items on mount (so panel is not empty on open)
  */
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { AiInsight } from "../types";
@@ -23,7 +22,9 @@ export function useFeed() {
   const [selectionText, setSelectionText] = useState("");
   const [keywords,      setKeywords]      = useState<string[]>([]);
 
-  // Insight state for feed articles (separate from main article insights)
+  // ── NEW: signal to SidePanel to open the Feed tab automatically ───────────
+  const [feedTabOpen,   setFeedTabOpen]   = useState(false);
+
   const feedInsightCache = useRef<Record<string, AiInsight>>({});
   const [feedInsightId,   setFeedInsightId]   = useState<string | null>(null);
   const [feedOpenInsight, setFeedOpenInsight] = useState<{
@@ -36,36 +37,44 @@ export function useFeed() {
     const uid = getLocalUser()?.id ?? "";
     listFeedItems(uid, 20)
       .then(arts => { if (arts.length > 0) setFeedArticles(arts); })
-      .catch(() => { /* silent — no feed yet is fine */ });
+      .catch(() => { /* no feed yet is fine */ });
   }, []);
 
-  /** Called when user clicks the floating "Feed" button after selecting text */
+  /** Called when user clicks ⚡ Feed toolbar button */
   const fetchFeedForSelection = useCallback(async (text: string) => {
     if (!text.trim()) return;
     setFeedLoading(true);
     setFeedError("");
+    setFeedTabOpen(true);   // ← tells SidePanel to switch to Feed tab
     const uid = getLocalUser()?.id ?? "";
     try {
       const res = await feedFromSelection({ selected_text: text, uid });
-      setKeywords(res.keywords);
-      if (res.saved === 0) {
-        setFeedError(res.message ?? "No articles found for this selection.");
+      setKeywords(res.keywords ?? []);
+      if ((res.saved ?? 0) === 0) {
+        setFeedError(
+          res.message ?? "No articles found for this selection. Try selecting longer text."
+        );
         return;
       }
-      // Prepend new articles, deduplicate by id
       setFeedArticles(prev => {
         const existingIds = new Set(prev.map(a => a.id));
-        const newOnes = res.articles.filter(a => !existingIds.has(a.id));
+        const newOnes     = (res.articles ?? []).filter(a => !existingIds.has(a.id));
         return [...newOnes, ...prev].slice(0, 50);
       });
     } catch (e: any) {
-      setFeedError(e.message);
+      // Show a user-friendly error instead of raw "Failed to fetch"
+      const msg = e.message ?? "";
+      if (msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("networkerror")) {
+        setFeedError("Cannot reach backend. Make sure Flask is running on http://127.0.0.1:5000");
+      } else {
+        setFeedError(msg || "Feed fetch failed. Please try again.");
+      }
     } finally {
       setFeedLoading(false);
     }
   }, []);
 
-  /** Generate or load insight for a feed article */
+  /** Fetch or show cached insight for a feed article */
   const requestFeedInsight = useCallback(async (article: FeedArticle) => {
     if (feedInsightCache.current[article.id]) {
       setFeedOpenInsight({ article, insight: feedInsightCache.current[article.id] });
@@ -87,7 +96,7 @@ export function useFeed() {
       );
       setFeedOpenInsight({ article, insight: ins });
     } catch (e: any) {
-      setFeedError(e.message);
+      setFeedError(e.message || "Insight generation failed.");
     } finally {
       setFeedInsightId(null);
     }
@@ -103,9 +112,10 @@ export function useFeed() {
   return {
     feedArticles,
     feedLoading,
-    feedError,    setFeedError,
-    selectionText, setSelectionText,
+    feedError,       setFeedError,
+    selectionText,   setSelectionText,
     keywords,
+    feedTabOpen,     setFeedTabOpen,   // ← NEW
     feedInsightId,
     feedOpenInsight, setFeedOpenInsight,
     fetchFeedForSelection,
