@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { AiInsight } from "../types";
 import { setDeepLinkParam, clearDeepLinkParam } from "../hooks/useDeepLink";
+import { dashboard } from "../lib/api";
 
 interface ArticleLike {
   id?: string;
@@ -70,7 +71,10 @@ export default function InsightPopup({ article, insight, onClose }: Props) {
 
   // Set ?insight= in URL immediately so the page is shareable as soon as popup opens
   useEffect(() => {
-    if (articleId) setDeepLinkParam("insight", articleId);
+    if (articleId) {
+      setDeepLinkParam("insight", articleId);
+      dashboard.event("ai_insight", articleId, article.title);
+    }
     return () => { if (articleId) clearDeepLinkParam("insight"); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [articleId]);

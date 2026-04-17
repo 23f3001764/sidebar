@@ -88,7 +88,7 @@ export default function SelectionToolbar({ onDiary, onFeed }: Props) {
   return (
     <div
       ref={ref}
-      className="fixed z-[100] flex items-center gap-1 px-2 py-1.5 rounded-xl shadow-2xl select-none"
+      className="fixed z-[999] flex items-center gap-1 px-2 py-1.5 rounded-xl shadow-2xl select-none"
       style={{
         left:          pos.x,
         top:           pos.y,

@@ -1,9 +1,3 @@
-/**
- * lib/content-api.ts
- * Typed wrappers for every static_content.py endpoint.
- * These replace the hardcoded TS data imports in ExplainerPage and ResearchPage.
- */
-
 const BASE =
   (typeof import.meta !== "undefined"
     ? (import.meta as any).env?.VITE_FLASK_API_URL
@@ -22,7 +16,19 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// ── TypeScript interfaces matching backend response shapes ────────────────────
+/** Resolve a backend image path to a full URL.
+ *  e.g. "/images/explainers/quantum-dog.jpg" → "http://127.0.0.1:5000/images/explainers/quantum-dog.jpg"
+ *  Returns empty string if no image provided.
+ */
+export function resolveImageUrl(imagePath?: string | null): string {
+  if (!imagePath) return "";
+  // Already absolute (http/https) — return as-is
+  if (imagePath.startsWith("http")) return imagePath;
+  // Relative path — prepend backend base
+  return `${BASE}${imagePath.startsWith("/") ? "" : "/"}${imagePath}`;
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface Explainer {
   id: string;
@@ -31,6 +37,7 @@ export interface Explainer {
   field: string;
   badgeColor: string;
   readTime: string;
+  image?: string;            // relative path like "/images/explainers/quantum-dog.jpg"
   content: string[];
   keyInsights: string[];
 }
@@ -43,6 +50,7 @@ export interface Article {
   author: string;
   date: string;
   readTime: string;
+  image?: string;            // relative path like "/images/research/physics.jpg"
   content: string[];
   quotes: string[];
   keyFindings: string[];
@@ -53,6 +61,7 @@ export interface FieldsMeta {
   fields: string[];
   field_icons: Record<string, string>;
   field_colors: Record<string, string>;
+  field_images?: Record<string, string>;   // NEW — from latest API
 }
 
 // ── Explainers ────────────────────────────────────────────────────────────────
@@ -67,7 +76,7 @@ export function getExplainer(id: string): Promise<Explainer> {
   return call<Explainer>(`/api/explainers/${id}`);
 }
 
-export function createExplainer(data: Omit<Explainer, "">): Promise<Explainer> {
+export function createExplainer(data: Partial<Explainer>): Promise<Explainer> {
   return call("/api/explainers", { method: "POST", body: JSON.stringify(data) });
 }
 
@@ -86,6 +95,7 @@ export async function getResearchArticles(field?: string): Promise<{
   fields: string[];
   field_icons: Record<string, string>;
   field_colors: Record<string, string>;
+  field_images?: Record<string, string>;
 }> {
   const qs = field ? `?field=${encodeURIComponent(field)}` : "";
   return call(`/api/research/articles${qs}`);
@@ -95,7 +105,7 @@ export function getResearchArticle(id: string): Promise<Article> {
   return call<Article>(`/api/research/articles/${id}`);
 }
 
-export function createResearchArticle(data: Omit<Article, "">): Promise<Article> {
+export function createResearchArticle(data: Partial<Article>): Promise<Article> {
   return call("/api/research/articles", { method: "POST", body: JSON.stringify(data) });
 }
 

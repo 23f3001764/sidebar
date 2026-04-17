@@ -1,58 +1,136 @@
-import { create } from 'zustand';
+/**
+ * steami-store.ts
+ *
+ * Diary entries and recommendations are now backed by the real API.
+ * On mount call `syncDiary()` to load from backend.
+ * `addToDiary` calls POST /api/diary automatically when authenticated.
+ */
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { diaryApi, dashboard, type DiaryEntry } from "@/lib/api";
+import { useAuthStore } from "./auth-store";
 
-export interface DiaryEntry {
+export interface LocalDiaryEntry {
   id: string;
   text: string;
   source: string;
-  sourceType: 'explainer' | 'article';
-  timestamp: number;
+  sourceType: "explainer" | "article";
   field?: string;
+  popup_id?: string;
+  popup_type?: DiaryEntry["popup_type"];
+  note?: string;
+  createdAt: string;
 }
 
-export interface AIRecommendation {
+export interface Recommendation {
   id: string;
+  type: "article" | "news" | "explainer";
   title: string;
   description: string;
   field: string;
-  type: 'article' | 'explainer' | 'news';
-  timestamp: number;
 }
 
 interface SteamiState {
-  diary: DiaryEntry[];
-  recommendations: AIRecommendation[];
-  addToDiary: (entry: Omit<DiaryEntry, 'id' | 'timestamp'>) => void;
-  removeDiaryEntry: (id: string) => void;
-  addRecommendation: (rec: Omit<AIRecommendation, 'id' | 'timestamp'>) => void;
+  diary: LocalDiaryEntry[];
+  recommendations: Recommendation[];
+  diaryLoaded: boolean;
+
+  addToDiary: (entry: Omit<LocalDiaryEntry, "id" | "createdAt">) => Promise<void>;
+  removeDiaryEntry: (id: string) => Promise<void>;
   clearDiary: () => void;
+  syncDiary: () => Promise<void>;
+  addRecommendation: (rec: Recommendation) => void;
+  setRecommendations: (recs: Recommendation[]) => void;
 }
 
-export const useSteamiStore = create<SteamiState>((set) => ({
-  diary: [],
-  recommendations: [
-    { id: 'r1', title: 'Quantum Error Correction Breakthroughs', description: 'Recent advances in topological qubits suggest fault-tolerant quantum computing may arrive sooner than expected.', field: 'PHYSICS', type: 'article', timestamp: Date.now() - 3600000 },
-    { id: 'r2', title: 'CRISPR Gene Drive Ethics', description: 'New frameworks for evaluating ecological risks of gene drive technology in wild populations.', field: 'BIOLOGY', type: 'news', timestamp: Date.now() - 7200000 },
-    { id: 'r3', title: 'Neural Architecture Search 2.0', description: 'AutoML systems now design transformer architectures that outperform human-designed models.', field: 'AI', type: 'explainer', timestamp: Date.now() - 10800000 },
-    { id: 'r4', title: 'Solid-State Battery Revolution', description: 'Toyota\'s latest solid-state prototype achieves 1200km range with 10-minute charging.', field: 'CLIMATE & ENERGY', type: 'news', timestamp: Date.now() - 14400000 },
-    { id: 'r5', title: 'Mars Sample Return Mission Update', description: 'ESA-NASA collaboration reveals new timeline for bringing Martian soil to Earth laboratories.', field: 'EARTH & SPACE', type: 'article', timestamp: Date.now() - 18000000 },
-  ],
-  addToDiary: (entry) =>
-    set((state) => ({
-      diary: [
-        { ...entry, id: crypto.randomUUID(), timestamp: Date.now() },
-        ...state.diary,
-      ],
-    })),
-  removeDiaryEntry: (id) =>
-    set((state) => ({
-      diary: state.diary.filter((e) => e.id !== id),
-    })),
-  addRecommendation: (rec) =>
-    set((state) => ({
-      recommendations: [
-        { ...rec, id: crypto.randomUUID(), timestamp: Date.now() },
-        ...state.recommendations,
-      ],
-    })),
-  clearDiary: () => set({ diary: [] }),
-}));
+function localToPopupType(sourceType: "explainer" | "article"): DiaryEntry["popup_type"] {
+  return sourceType === "explainer" ? "explainer" : "research_article";
+}
+
+export const useSteamiStore = create<SteamiState>()(
+  persist(
+    (set, get) => ({
+      diary: [],
+      recommendations: [],
+      diaryLoaded: false,
+
+      addToDiary: async (entry) => {
+        const id = crypto.randomUUID();
+        const local: LocalDiaryEntry = {
+          ...entry,
+          id,
+          createdAt: new Date().toISOString(),
+        };
+
+        // Optimistic update
+        set((s) => ({ diary: [local, ...s.diary] }));
+
+        // Track popup event
+        if (entry.popup_id && entry.popup_type) {
+          dashboard.event(entry.popup_type, entry.popup_id, entry.source);
+        }
+
+        // Persist to backend if authenticated
+        const { isAuthenticated } = useAuthStore.getState();
+        if (isAuthenticated && entry.popup_id) {
+          try {
+            const saved = await diaryApi.create({
+              popup_type: entry.popup_type ?? localToPopupType(entry.sourceType),
+              popup_id: entry.popup_id,
+              title: entry.source,
+              selected_text: entry.text,
+              note: entry.note ?? "",
+            });
+            // Replace optimistic entry with real one
+            set((s) => ({
+              diary: s.diary.map((d) =>
+                d.id === id
+                  ? { ...local, id: saved.id, popup_id: saved.popup_id }
+                  : d
+              ),
+            }));
+          } catch { /* keep optimistic */ }
+        }
+      },
+
+      removeDiaryEntry: async (id) => {
+        set((s) => ({ diary: s.diary.filter((d) => d.id !== id) }));
+        const { isAuthenticated } = useAuthStore.getState();
+        if (isAuthenticated) {
+          try { await diaryApi.delete(id); } catch { /* ignore */ }
+        }
+      },
+
+      clearDiary: () => set({ diary: [] }),
+
+      syncDiary: async () => {
+        const { isAuthenticated } = useAuthStore.getState();
+        if (!isAuthenticated || get().diaryLoaded) return;
+        try {
+          const res = await diaryApi.list(50);
+          const entries: LocalDiaryEntry[] = res.entries.map((e) => ({
+            id: e.id,
+            text: e.selected_text,
+            source: e.title,
+            sourceType: e.popup_type === "explainer" ? "explainer" : "article",
+            field: undefined,
+            popup_id: e.popup_id,
+            popup_type: e.popup_type,
+            note: e.note,
+            createdAt: e.created_at,
+          }));
+          set({ diary: entries, diaryLoaded: true });
+        } catch { /* ignore, keep local */ }
+      },
+
+      addRecommendation: (rec) =>
+        set((s) => ({ recommendations: [rec, ...s.recommendations].slice(0, 20) })),
+
+      setRecommendations: (recs) => set({ recommendations: recs }),
+    }),
+    {
+      name: "steami_store_v2",
+      partialize: (s) => ({ diary: s.diary, recommendations: s.recommendations }),
+    }
+  )
+);

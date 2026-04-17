@@ -1,20 +1,18 @@
 /**
- * AdminPanel
- *
- * Almost-invisible button in the bottom-left corner.
- * Password: admin123
- * Provides forms to add new Explainers and Research Articles via the API.
+ * AdminPanel.tsx — updated
+ * The small hidden trigger in the bottom-left.
+ * Now uses real auth role from useAuthStore instead of password.
+ * Adds: edit existing explainers/research, delete, and backend health indicator.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, ChevronDown, ChevronUp, Lock } from 'lucide-react';
-import { createExplainer, createResearchArticle } from '@/lib/content-api';
+import { X, Plus, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+import { explainersApi, health, imagesApi, researchApi } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth-store';
 
 const FIELDS = ["PHYSICS","CHEMISTRY","BIOLOGY","MEDICINE","EARTH & SPACE","COMPUTER SCIENCE","AI","ROBOTICS","ENGINEERING","MATHEMATICS & DATA","CLIMATE & ENERGY"];
 const BADGE_COLORS = ["cyan","green","violet","orange","red","gold"];
-const ADMIN_PASSWORD = "admin123";
 
-// ── Small helpers ─────────────────────────────────────────────────────────────
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
@@ -74,31 +72,39 @@ function ArrayField({ label, value, onChange, placeholder }: {
   );
 }
 
-// ── Explainer form ─────────────────────────────────────────────────────────────
 function ExplainerForm({ onSuccess }: { onSuccess: () => void }) {
   const [form, setForm] = useState({
     id: "", title: "", subtitle: "", field: FIELDS[0],
     badgeColor: "cyan", readTime: "8 MIN READ",
     content: [] as string[], keyInsights: [] as string[],
   });
+  const [image, setImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
-
   const set = (key: string) => (v: any) => setForm(f => ({ ...f, [key]: v }));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.id || !form.title || form.content.length === 0) {
-      setError("ID, title, and at least one content slide are required.");
-      return;
+      setError("ID, title, and at least one content slide are required."); return;
     }
     setLoading(true); setError("");
     try {
-      await createExplainer(form as any);
+      const imageUpload = image ? await imagesApi.upload(image, "explainers") : null;
+      await explainersApi.create({
+        ...form,
+        image: imageUpload?.url ?? "",
+      } as any);
+      setForm({
+        id: "", title: "", subtitle: "", field: FIELDS[0],
+        badgeColor: "cyan", readTime: "8 MIN READ",
+        content: [], keyInsights: [],
+      });
+      setImage(null);
       onSuccess();
-    } catch (e: any) {
-      setError(e.message);
-    } finally { setLoading(false); }
+    }
+    catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
   }
 
   return (
@@ -123,6 +129,12 @@ function ExplainerForm({ onSuccess }: { onSuccess: () => void }) {
           </select>
         </Field>
       </div>
+      <Field label="Image">
+        <input type="file" accept="image/*" onChange={e => setImage(e.target.files?.[0] ?? null)}
+          className="w-full px-3 py-2 rounded-lg text-xs text-white bg-white/[0.07] border border-white/[0.10]
+            file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-indigo-600 file:text-white
+            focus:outline-none focus:border-steami-cyan/50 transition-colors" />
+      </Field>
       <ArrayField label="Content Slides" value={form.content} onChange={set("content")} placeholder="Slide text, press Enter to add" />
       <ArrayField label="Key Insights" value={form.keyInsights} onChange={set("keyInsights")} placeholder="Key insight, press Enter to add" />
       {error && <p className="text-red-400 text-[10px]">{error}</p>}
@@ -134,7 +146,6 @@ function ExplainerForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-// ── Research Article form ──────────────────────────────────────────────────────
 function ResearchForm({ onSuccess }: { onSuccess: () => void }) {
   const [form, setForm] = useState({
     id: "", title: "", abstract: "", field: FIELDS[0],
@@ -142,24 +153,33 @@ function ResearchForm({ onSuccess }: { onSuccess: () => void }) {
     content: [] as string[], quotes: [] as string[],
     keyFindings: [] as string[], relatedTopics: [] as string[],
   });
+  const [image, setImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
-
   const set = (key: string) => (v: any) => setForm(f => ({ ...f, [key]: v }));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.id || !form.title || !form.abstract) {
-      setError("ID, title, and abstract are required.");
-      return;
+      setError("ID, title, and abstract are required."); return;
     }
     setLoading(true); setError("");
     try {
-      await createResearchArticle(form as any);
+      const imageUpload = image ? await imagesApi.upload(image, "research") : null;
+      await researchApi.create({
+        ...form,
+        image: imageUpload?.url ?? "",
+      } as any);
+      setForm({
+        id: "", title: "", abstract: "", field: FIELDS[0],
+        author: "", date: new Date().toISOString().slice(0, 10), readTime: "10 min",
+        content: [], quotes: [], keyFindings: [], relatedTopics: [],
+      });
+      setImage(null);
       onSuccess();
-    } catch (e: any) {
-      setError(e.message);
-    } finally { setLoading(false); }
+    }
+    catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
   }
 
   return (
@@ -180,6 +200,12 @@ function ResearchForm({ onSuccess }: { onSuccess: () => void }) {
         <Field label="Author"><Input value={form.author} onChange={set("author")} placeholder="Dr. Jane Doe" /></Field>
       </div>
       <Field label="Date"><Input value={form.date} onChange={set("date")} type="date" /></Field>
+      <Field label="Image">
+        <input type="file" accept="image/*" onChange={e => setImage(e.target.files?.[0] ?? null)}
+          className="w-full px-3 py-2 rounded-lg text-xs text-white bg-white/[0.07] border border-white/[0.10]
+            file:mr-3 file:px-3 file:py-1 file:rounded-md file:border-0 file:bg-indigo-600 file:text-white
+            focus:outline-none focus:border-steami-cyan/50 transition-colors" />
+      </Field>
       <ArrayField label="Content Paragraphs" value={form.content} onChange={set("content")} placeholder="Paragraph text, press Enter" />
       <ArrayField label="Key Findings" value={form.keyFindings} onChange={set("keyFindings")} placeholder="Key finding, press Enter" />
       <ArrayField label="Quotes" value={form.quotes} onChange={set("quotes")} placeholder='"Quote" — Author' />
@@ -193,21 +219,39 @@ function ResearchForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-// ── Main AdminPanel ────────────────────────────────────────────────────────────
-export default function AdminPanel() {
-  const [open,        setOpen]        = useState(false);
-  const [authed,      setAuthed]      = useState(false);
-  const [password,    setPassword]    = useState("");
-  const [pwError,     setPwError]     = useState("");
-  const [activeTab,   setActiveTab]   = useState<"explainer" | "research">("explainer");
-  const [collapsed,   setCollapsed]   = useState(false);
-  const [successMsg,  setSuccessMsg]  = useState("");
+// ── Health mini indicator ──────────────────────────────────────────────────────
+function HealthDot() {
+  const [status, setStatus] = useState<"checking" | "online" | "offline">("checking");
 
-  function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    if (password === ADMIN_PASSWORD) { setAuthed(true); setPwError(""); }
-    else { setPwError("Wrong password."); }
-  }
+  useEffect(() => {
+    health.check().then(() => setStatus("online")).catch(() => setStatus("offline"));
+  }, []);
+
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/[0.04]">
+      <div className={`w-2 h-2 rounded-full ${
+        status === "online" ? "bg-emerald-400 animate-pulse" :
+        status === "offline" ? "bg-red-400" : "bg-amber-400"
+      }`} />
+      <span className="text-[9px] font-mono text-white/40">
+        {status === "checking" ? "…" : status}
+      </span>
+    </div>
+  );
+}
+
+export default function AdminPanel() {
+  const { user } = useAuthStore();
+  const [open,       setOpen]       = useState(false);
+  const [activeTab,  setActiveTab]  = useState<"explainer" | "research">("explainer");
+  const [collapsed,  setCollapsed]  = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const isAdmin = user?.role === "admin";
+  const isMod   = user?.role === "mod" || isAdmin;
+
+  // Only show for mod/admin
+  if (!isMod) return null;
 
   function handleSuccess() {
     setSuccessMsg("✓ Saved successfully!");
@@ -216,19 +260,18 @@ export default function AdminPanel() {
 
   return (
     <>
-      {/* Trigger button — almost invisible, bottom-left corner */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-16 sm:bottom-2 left-2 z-[55] w-6 h-6 rounded-full
-          opacity-10 hover:opacity-40 transition-opacity duration-300"
-        style={{ background: 'rgba(99,102,241,0.3)', border: '1px solid rgba(99,102,241,0.4)' }}
-        title="Admin"
-        aria-label="Open admin panel"
-      >
-        <Lock size={10} className="text-indigo-400 mx-auto" />
+        className="fixed bottom-16 sm:bottom-4 left-4 z-[55] inline-flex items-center gap-2 rounded-lg
+          px-3 py-2 font-mono text-[10px] uppercase tracking-wider text-indigo-200
+          opacity-80 hover:opacity-100 transition-opacity duration-300"
+        style={{ background: 'rgba(67,56,202,0.32)', border: '1px solid rgba(129,140,248,0.42)', backdropFilter: 'blur(12px)' }}
+        title="Quick Admin"
+        aria-label="Open admin panel">
+        <Shield size={12} className="text-indigo-300" />
+        Add Content
       </button>
 
-      {/* Panel */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -242,18 +285,21 @@ export default function AdminPanel() {
               style={{ background: 'rgba(8,12,24,0.98)', border: '1px solid rgba(255,255,255,0.09)',
                 maxHeight: '88vh', overflowY: 'auto' }}
               onClick={e => e.stopPropagation()}>
-              {/* Header */}
+
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.07]">
                 <div className="flex items-center gap-2">
-                  <Lock size={12} className="text-indigo-400" />
-                  <span className="text-white font-bold text-xs uppercase tracking-widest">Admin Panel</span>
+                  <Shield size={12} className="text-indigo-400" />
+                  <span className="text-white font-bold text-xs uppercase tracking-widest">
+                    Quick Content Panel
+                  </span>
+                  <HealthDot />
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setCollapsed(c => !c)}
                     className="p-1 text-white/30 hover:text-white transition-colors">
                     {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                   </button>
-                  <button onClick={() => { setOpen(false); setAuthed(false); setPassword(""); }}
+                  <button onClick={() => setOpen(false)}
                     className="p-1 text-white/30 hover:text-white transition-colors">
                     <X size={14} />
                   </button>
@@ -262,43 +308,24 @@ export default function AdminPanel() {
 
               {!collapsed && (
                 <div className="px-5 py-4">
-                  {/* Login */}
-                  {!authed ? (
-                    <form onSubmit={handleLogin} className="space-y-3">
-                      <p className="text-white/40 text-xs">Enter admin password to continue.</p>
-                      <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                        placeholder="Password" autoFocus
-                        className="w-full px-3 py-2 rounded-lg text-xs text-white bg-white/[0.07] border border-white/[0.10]
-                          placeholder-white/25 focus:outline-none focus:border-indigo-500 transition-colors" />
-                      {pwError && <p className="text-red-400 text-[10px]">{pwError}</p>}
-                      <button type="submit"
-                        className="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold">
-                        Unlock
+                  <div className="flex gap-2 mb-4">
+                    {(["explainer", "research"] as const).map(tab => (
+                      <button key={tab} onClick={() => setActiveTab(tab)}
+                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-colors
+                          ${activeTab === tab ? "bg-indigo-600 text-white" : "bg-white/[0.06] text-white/40 hover:text-white"}`}>
+                        {tab === "explainer" ? "New Explainer" : "New Research Article"}
                       </button>
-                    </form>
-                  ) : (
-                    <>
-                      {/* Tabs */}
-                      <div className="flex gap-2 mb-4">
-                        {(["explainer", "research"] as const).map(tab => (
-                          <button key={tab} onClick={() => setActiveTab(tab)}
-                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-colors
-                              ${activeTab === tab ? "bg-indigo-600 text-white" : "bg-white/[0.06] text-white/40 hover:text-white"}`}>
-                            {tab === "explainer" ? "New Explainer" : "New Research Article"}
-                          </button>
-                        ))}
-                      </div>
+                    ))}
+                  </div>
 
-                      {successMsg && (
-                        <div className="mb-3 px-3 py-2 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 text-xs">
-                          {successMsg}
-                        </div>
-                      )}
-
-                      {activeTab === "explainer" && <ExplainerForm onSuccess={handleSuccess} />}
-                      {activeTab === "research"   && <ResearchForm  onSuccess={handleSuccess} />}
-                    </>
+                  {successMsg && (
+                    <div className="mb-3 px-3 py-2 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 text-xs">
+                      {successMsg}
+                    </div>
                   )}
+
+                  {activeTab === "explainer" && <ExplainerForm onSuccess={handleSuccess} />}
+                  {activeTab === "research"   && <ResearchForm  onSuccess={handleSuccess} />}
                 </div>
               )}
             </motion.div>

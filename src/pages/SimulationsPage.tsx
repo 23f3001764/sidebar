@@ -5,6 +5,7 @@ import { QuantumBlochSphere } from '@/components/simulations/QuantumBlochSphere'
 import { ThreeBodySim } from '@/components/simulations/ThreeBodySim';
 import { staggerContainer, cardVariants, cardHover, cardTap, overlayVariants, modalVariants, fadeInUp } from '@/lib/motion';
 import { Lightbulb, ChevronDown } from 'lucide-react';
+import { dashboard } from '@/lib/api';
 
 const simulations = [
   {
@@ -47,6 +48,12 @@ export default function SimulationsPage() {
 
   const toggleInsights = (id: string) => {
     setExpandedInsights((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const openSimulation = (id: string) => {
+    const sim = simulations.find((item) => item.id === id);
+    setOpenSim(id);
+    if (sim) dashboard.event("simulation", sim.id, sim.title);
   };
 
   return (
@@ -147,7 +154,7 @@ export default function SimulationsPage() {
                 <motion.button
                   whileHover={cardHover}
                   whileTap={cardTap}
-                  onClick={() => setOpenSim(sim.id)}
+                  onClick={() => openSimulation(sim.id)}
                   className="steami-btn text-[9px]"
                 >
                   ▶ LAUNCH SIMULATION

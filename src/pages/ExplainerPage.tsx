@@ -5,19 +5,19 @@ import { TextSelectionPopover } from '@/components/TextSelectionPopover';
 import { KnowledgeGraph } from '@/components/KnowledgeGraph';
 import { ShareMenu } from '@/components/ShareMenu';
 import { staggerContainer, cardVariants, cardHover, cardTap, overlayVariants, modalVariants, fadeInUp } from '@/lib/motion';
-import { ChevronLeft, ChevronRight, Play, Pause, X, Lightbulb, Link } from 'lucide-react';
-import { getExplainers, type Explainer } from '@/lib/content-api';
+import { ChevronLeft, ChevronRight, Play, Pause, X, Lightbulb, Link, Check } from 'lucide-react';
+import { getExplainers, resolveImageUrl, type Explainer } from '@/lib/content-api';
 import { useDeepLink, clearDeepLinkParam, setDeepLinkParam } from '@/hooks/useDeepLink';
-import { useSearchParams } from 'react-router-dom';
+import { dashboard } from '@/lib/api';
 
 export default function ExplainerPage() {
-  const [explainers, setExplainers]   = useState<Explainer[]>([]);
-  const [loading,    setLoading]       = useState(true);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [slideIdx,   setSlideIdx]     = useState(0);
-  const [autoPlay,   setAutoPlay]     = useState(true);
+  const [explainers,   setExplainers]   = useState<Explainer[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [selectedIdx,  setSelectedIdx]  = useState<number | null>(null);
+  const [slideIdx,     setSlideIdx]     = useState(0);
+  const [autoPlay,     setAutoPlay]     = useState(true);
+  const [copied,       setCopied]       = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [copied, setCopied]           = useState(false);
 
   const [carouselIdx,    setCarouselIdx]    = useState(0);
   const [carouselPaused, setCarouselPaused] = useState(false);
@@ -25,7 +25,7 @@ export default function ExplainerPage() {
 
   const selected = selectedIdx !== null ? explainers[selectedIdx] : null;
 
-  // ── Load explainers from backend ───────────────────────────────────────────
+  // ── Load explainers ────────────────────────────────────────────────────────
   useEffect(() => {
     getExplainers()
       .then(data => { setExplainers(data); setLoading(false); })
@@ -39,7 +39,7 @@ export default function ExplainerPage() {
     return () => clearInterval(t);
   }, [autoPlay, selectedIdx, selected]);
 
-  // ── Carousel auto-rotate ───────────────────────────────────────────────────
+  // ── Carousel rotation ──────────────────────────────────────────────────────
   useEffect(() => {
     if (carouselPaused || explainers.length === 0) return;
     const t = setInterval(() => setCarouselIdx(p => (p + 1) % featuredCount), 4000);
@@ -50,7 +50,10 @@ export default function ExplainerPage() {
     setSelectedIdx(idx);
     setSlideIdx(0);
     setAutoPlay(true);
-    if (explainers[idx]) setDeepLinkParam("explainer", explainers[idx].id);
+    if (explainers[idx]) {
+      setDeepLinkParam("explainer", explainers[idx].id);
+      dashboard.event("explainer", explainers[idx].id, explainers[idx].title);
+    }
   }, [explainers]);
 
   const closeModal = useCallback(() => {
@@ -59,19 +62,18 @@ export default function ExplainerPage() {
     clearDeepLinkParam("explainer");
   }, []);
 
-  // ── Deep-link: open modal from URL param ───────────────────────────────────
+  // ── Deep-link ──────────────────────────────────────────────────────────────
   useDeepLink({
     onExplainer: (id) => {
-      // Wait until explainers are loaded
       const tryOpen = (attempts = 0) => {
         setExplainers(prev => {
           const idx = prev.findIndex(e => e.id === id);
           if (idx !== -1) {
             setSelectedIdx(idx);
             setSlideIdx(0);
-          } else if (attempts < 20) {
-            setTimeout(() => tryOpen(attempts + 1), 100);
+            dashboard.event("explainer", prev[idx].id, prev[idx].title);
           }
+          else if (attempts < 20) setTimeout(() => tryOpen(attempts + 1), 150);
           return prev;
         });
       };
@@ -79,7 +81,6 @@ export default function ExplainerPage() {
     },
   });
 
-  // ── Copy deep-link ─────────────────────────────────────────────────────────
   function handleCopyLink() {
     navigator.clipboard.writeText(window.location.href).catch(() => {});
     setCopied(true);
@@ -105,12 +106,16 @@ export default function ExplainerPage() {
         </p>
       </motion.div>
 
-      {/* Featured Carousel */}
+      {/* ── Featured Carousel ──────────────────────────────────────────────── */}
       {explainers.length > 0 && (
         <div className="mb-8">
           <div className="steami-section-label mb-4">◆ FEATURED EXPLAINERS</div>
-          <div className="relative" onMouseEnter={() => setCarouselPaused(true)} onMouseLeave={() => setCarouselPaused(false)}>
-            <div className="relative overflow-hidden" style={{ minHeight: 280 }}>
+          <div
+            className="relative"
+            onMouseEnter={() => setCarouselPaused(true)}
+            onMouseLeave={() => setCarouselPaused(false)}
+          >
+            <div className="relative overflow-hidden rounded-xl" style={{ minHeight: 280 }}>
               <AnimatePresence mode="wait">
                 <motion.div key={carouselIdx}
                   initial={{ opacity: 0, x: 80 }} animate={{ opacity: 1, x: 0 }}
@@ -118,24 +123,43 @@ export default function ExplainerPage() {
                   {(() => {
                     const exp = explainers[carouselIdx];
                     if (!exp) return null;
+                    const imgUrl = resolveImageUrl(exp.image);
                     return (
-                      <motion.div whileHover={cardHover} whileTap={cardTap}
-                        className="glass-card relative p-8 cursor-pointer overflow-hidden group"
-                        onClick={() => openModal(carouselIdx)}>
-                        <motion.div className="absolute top-0 left-0 right-0 h-[2px]"
-                          style={{ background: 'hsl(var(--steami-gold))' }}
-                          initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5 }} />
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex flex-wrap gap-2">
-                            <span className={`${badgeClass(exp.badgeColor)} text-[9px]`}>{exp.field}</span>
-                            <span className="steami-badge steami-badge-gold text-[9px]">FEATURED</span>
+                      <motion.div
+                        whileHover={cardHover} whileTap={cardTap}
+                        className="glass-card relative cursor-pointer overflow-hidden group"
+                        onClick={() => openModal(carouselIdx)}
+                      >
+                        {/* Background image */}
+                        {imgUrl && (
+                          <div className="absolute inset-0 z-0">
+                            <img src={imgUrl} alt="" className="w-full h-full object-cover opacity-20" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-[rgba(5,14,32,0.95)] via-[rgba(5,14,32,0.75)] to-[rgba(5,14,32,0.4)]" />
                           </div>
-                          <ShareMenu title={exp.title} compact className="opacity-0 group-hover:opacity-100" />
-                        </div>
-                        <h3 className="font-serif text-xl md:text-2xl font-bold mb-3 leading-snug text-foreground">{exp.title}</h3>
-                        <p className="text-[13px] font-light text-muted-foreground leading-relaxed mb-6 max-w-2xl">{exp.subtitle}</p>
-                        <div className="flex items-center justify-end">
-                          <span className="font-mono text-[9px] text-steami-cyan tracking-wider uppercase">Click to read →</span>
+                        )}
+                        <div className="relative z-10 p-8">
+                          <motion.div className="absolute top-0 left-0 right-0 h-[2px]"
+                            style={{ background: 'hsl(var(--steami-gold))' }}
+                            initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5 }} />
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex flex-wrap gap-2">
+                              <span className={`${badgeClass(exp.badgeColor)} text-[9px]`}>{exp.field}</span>
+                              <span className="steami-badge steami-badge-gold text-[9px]">FEATURED</span>
+                            </div>
+                            <ShareMenu title={exp.title} compact className="opacity-0 group-hover:opacity-100" />
+                          </div>
+                          <h3 className="font-serif text-xl md:text-2xl font-bold mb-3 leading-snug text-foreground">
+                            {exp.title}
+                          </h3>
+                          <p className="text-[13px] font-light text-muted-foreground leading-relaxed mb-6 max-w-2xl">
+                            {exp.subtitle}
+                          </p>
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-[9px] text-muted-foreground">{exp.readTime}</span>
+                            <span className="font-mono text-[9px] text-steami-cyan tracking-wider uppercase">
+                              Click to read →
+                            </span>
+                          </div>
                         </div>
                       </motion.div>
                     );
@@ -143,6 +167,8 @@ export default function ExplainerPage() {
                 </motion.div>
               </AnimatePresence>
             </div>
+
+            {/* Carousel nav */}
             <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
               onClick={() => { setCarouselIdx(p => (p - 1 + featuredCount) % featuredCount); setCarouselPaused(true); }}
               className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-steami-cyan transition-colors"
@@ -159,63 +185,104 @@ export default function ExplainerPage() {
               {Array.from({ length: featuredCount }).map((_, i) => (
                 <button key={i} onClick={() => { setCarouselIdx(i); setCarouselPaused(true); }}
                   className="w-2 h-2 rounded-full transition-all duration-300"
-                  style={{ background: i === carouselIdx ? 'hsl(var(--steami-cyan))' : 'rgba(99,179,237,0.2)', transform: i === carouselIdx ? 'scale(1.5)' : 'scale(1)' }} />
+                  style={{
+                    background: i === carouselIdx ? 'hsl(var(--steami-cyan))' : 'rgba(99,179,237,0.2)',
+                    transform: i === carouselIdx ? 'scale(1.5)' : 'scale(1)',
+                  }} />
               ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Grid */}
+      {/* ── All Explainers Grid ────────────────────────────────────────────── */}
       <div className="steami-section-label mb-4">ALL EXPLAINERS</div>
       <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
         variants={staggerContainer} initial="hidden" animate="visible">
-        {explainers.map((exp, idx) => (
-          <motion.div key={exp.id} custom={idx} variants={cardVariants}
-            whileHover={cardHover} whileTap={cardTap}
-            className="glass-card relative p-6 cursor-pointer overflow-hidden group"
-            onClick={() => openModal(idx)}>
-            <div className="flex items-center justify-between mb-3">
-              <span className={`${badgeClass(exp.badgeColor)} text-[9px]`}>{exp.field}</span>
-              <span className="font-mono text-[9px] text-muted-foreground">{exp.readTime}</span>
-            </div>
-            <h3 className="font-serif text-sm font-bold mb-2 leading-snug text-foreground">{exp.title}</h3>
-            <p className="text-[11px] font-light text-muted-foreground leading-relaxed line-clamp-3">{exp.subtitle}</p>
-          </motion.div>
-        ))}
+        {explainers.map((exp, idx) => {
+          const imgUrl = resolveImageUrl(exp.image);
+          return (
+            <motion.div key={exp.id} custom={idx} variants={cardVariants}
+              whileHover={cardHover} whileTap={cardTap}
+              className="glass-card relative cursor-pointer overflow-hidden group"
+              onClick={() => openModal(idx)}>
+              {/* Card image */}
+              {imgUrl && (
+                <div className="relative h-32 overflow-hidden">
+                  <img src={imgUrl} alt={exp.title}
+                    className="w-full h-full object-cover opacity-60 group-hover:opacity-75
+                      transition-opacity duration-300 group-hover:scale-105 transform transition-transform" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[rgba(5,14,32,0.95)]" />
+                  <div className="absolute bottom-2 left-3 flex items-center gap-2">
+                    <span className={`${badgeClass(exp.badgeColor)} text-[8px]`}>{exp.field}</span>
+                  </div>
+                </div>
+              )}
+              <div className="p-4">
+                {!imgUrl && (
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`${badgeClass(exp.badgeColor)} text-[9px]`}>{exp.field}</span>
+                    <span className="font-mono text-[9px] text-muted-foreground">{exp.readTime}</span>
+                  </div>
+                )}
+                {imgUrl && (
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-mono text-[9px] text-muted-foreground">{exp.readTime}</span>
+                  </div>
+                )}
+                <h3 className="font-serif text-sm font-bold mb-1.5 leading-snug text-foreground">
+                  {exp.title}
+                </h3>
+                <p className="text-[11px] font-light text-muted-foreground leading-relaxed line-clamp-2">
+                  {exp.subtitle}
+                </p>
+              </div>
+            </motion.div>
+          );
+        })}
       </motion.div>
 
-      {/* Modal */}
+      {/* ── Modal ──────────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {selected && (
           <motion.div variants={overlayVariants} initial="hidden" animate="visible" exit="exit"
             className="fixed inset-0 flex items-center justify-center p-4"
-            style={{ background: 'rgba(2,8,18,0.82)', backdropFilter: 'blur(8px)',
-              // KEY FIX: z-index below SidePanel (z-50) but above page content
-              // SidePanel tabs are z-60, so popup at z-[150] covers content but NOT tabs
-              zIndex: 150 }}
+            style={{ background: 'rgba(2,8,18,0.82)', backdropFilter: 'blur(8px)', zIndex: 150 }}
             onClick={closeModal}>
             <motion.div variants={modalVariants} initial="hidden" animate="visible" exit="exit"
-              className="w-full max-w-[720px] max-h-[85vh] overflow-y-auto rounded-xl"
-              style={{ background: 'rgba(5,14,32,0.92)', backdropFilter: 'blur(24px) saturate(160%)',
+              className="w-full max-w-[720px] max-h-[88vh] overflow-y-auto rounded-xl"
+              style={{
+                background: 'rgba(5,14,32,0.92)',
+                backdropFilter: 'blur(24px) saturate(160%)',
                 border: '1px solid rgba(255,255,255,0.07)',
-                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.6), 0 0 40px rgba(99,179,237,0.1)' }}
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.6), 0 0 40px rgba(99,179,237,0.1)',
+              }}
               onClick={e => e.stopPropagation()}>
-              {/* Header */}
-              <div className="sticky top-0 z-10 px-7 py-4 flex items-center justify-between border-b border-foreground/5"
+
+              {/* Modal header image banner */}
+              {resolveImageUrl(selected.image) && (
+                <div className="relative h-36 overflow-hidden rounded-t-xl">
+                  <img src={resolveImageUrl(selected.image)} alt={selected.title}
+                    className="w-full h-full object-cover opacity-50" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[rgba(5,14,32,1)]" />
+                </div>
+              )}
+
+              {/* Sticky top bar */}
+              <div className={[
+                "sticky top-0 z-10 px-7 py-4 flex items-center justify-between border-b border-foreground/5",
+                resolveImageUrl(selected.image) ? "-mt-12" : "",
+              ].join(" ")}
                 style={{ background: 'rgba(5,14,32,0.95)', backdropFilter: 'blur(20px)' }}>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={badgeClass(selected.badgeColor)}>{selected.field}</span>
                   <span className="font-mono text-[9px] text-muted-foreground">{selected.readTime}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* Deep link copy button */}
-                  <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
+                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                     onClick={handleCopyLink}
-                    className="steami-btn py-1.5 px-2.5 text-[9px] flex items-center gap-1"
-                    title="Copy shareable link">
-                    <Link className="w-3 h-3" />
-                    {copied ? "Copied!" : "Copy Link"}
+                    className="steami-btn py-1.5 px-2.5 text-[9px] flex items-center gap-1">
+                    {copied ? <><Check className="w-3 h-3 text-green-400" /> Copied!</> : <><Link className="w-3 h-3" /> Copy Link</>}
                   </motion.button>
                   <ShareMenu title={selected.title} compact />
                   <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
@@ -229,24 +296,34 @@ export default function ExplainerPage() {
                   </motion.button>
                 </div>
               </div>
+
               {/* Body */}
               <div ref={contentRef} className="p-7">
                 <TextSelectionPopover
                   containerRef={contentRef as React.RefObject<HTMLDivElement>}
-                  source={selected.title} sourceType="explainer" field={selected.field} />
+                  source={selected.title}
+                  sourceType="explainer"
+                  field={selected.field}
+                  popupId={selected.id}
+                  popupTitle={selected.title} />
                 <div className="flex flex-col-reverse md:flex-row gap-6">
                   <div className="flex-1">
                     <h2 className="steami-heading text-2xl mb-5">{selected.title}</h2>
+                    {/* Progress dots */}
                     <div className="flex gap-1 mb-6">
                       {selected.content.map((_, i) => (
                         <motion.button key={i}
                           onClick={() => { setSlideIdx(i); setAutoPlay(false); }}
                           className="h-1 flex-1 rounded-full"
-                          animate={{ background: i === slideIdx ? 'hsl(207 72% 65%)' : i < slideIdx ? 'rgba(99,179,237,0.3)' : 'rgba(255,255,255,0.08)', scaleY: i === slideIdx ? 1.5 : 1 }}
+                          animate={{
+                            background: i === slideIdx ? 'hsl(207 72% 65%)' : i < slideIdx ? 'rgba(99,179,237,0.3)' : 'rgba(255,255,255,0.08)',
+                            scaleY: i === slideIdx ? 1.5 : 1,
+                          }}
                           transition={{ duration: 0.3 }}
                           whileHover={{ scaleY: 2, background: 'rgba(99,179,237,0.5)' }} />
                       ))}
                     </div>
+                    {/* Slide content */}
                     <AnimatePresence mode="wait">
                       <motion.div key={slideIdx}
                         initial={{ opacity: 0, x: 30, filter: 'blur(4px)' }}
@@ -282,6 +359,8 @@ export default function ExplainerPage() {
                       </motion.button>
                     </div>
                   </div>
+
+                  {/* Key Insights sidebar */}
                   <motion.div initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.3, duration: 0.4 }}
                     className="md:w-64 shrink-0 rounded-xl p-4"
